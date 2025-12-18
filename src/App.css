@@ -1,0 +1,417 @@
+#root {
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.2rem;
+  text-align: center;
+}
+
+/* ================= JOIN ================= */
+
+.join-div {
+  margin: 10% auto;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ================= INPUT ================= */
+form{
+  display: flex;
+  flex-direction: column;
+  align-items:center
+}
+input {
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 10px;
+  max-width: 80vw;
+  min-width: 70vw;
+  height: 25px !important;
+}
+
+input,
+.join-btn {
+  margin: 10px 0;
+  width: 100%;
+  height: 44px;
+  outline: none;
+}
+
+/* ================= BUTTON ================= */
+
+.join-btn {
+  height: 48px;
+  font-size: 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* ================= QUIZ ================= */
+
+.quiz-div {
+  background-color: rgba(0, 0, 0, 0.14);
+  height: max-content;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+/* ================= ROOM ================= */
+
+.room-id {
+  font-size: 16px;
+  margin-top: -10px;
+  margin-bottom: 10px;
+}
+
+/* ================= QUESTION ================= */
+
+.question {
+  font-size: 18px;
+  width: 100%;
+  margin: 30px auto;
+}
+
+.question-text {
+  margin: 5px auto;
+}
+
+/* ================= ANSWERS ================= */
+
+ul {
+  margin: 0 auto;
+  padding: 0;
+  width: 100%;
+}
+
+li {
+  list-style: none;
+  width: 100%;
+  margin: 14px 0;
+}
+
+.options {
+  width: 100%;
+  padding: 16px 12px;
+  font-size: 18px;
+  border-radius: 14px;
+ 
+  background: transparent;
+  border: 2px solid #b77dfd;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* ================= SELECTED ================= */
+
+.selected {
+  background-color: #b77dfd;
+  color: #fff;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 140px;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(183, 125, 253, 0.25),
+    rgba(183, 125, 253, 0.05),
+    transparent
+  );
+  z-index: 0;
+}
+
+/* ================= SNOW ================= */
+
+.snow {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.snow span {
+  position: absolute;
+  top: -10px;
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: snowFall linear infinite;
+}
+
+/* разные снежинки */
+.snow span:nth-child(odd) {
+  width: 4px;
+  height: 4px;
+  opacity: 0.6;
+}
+
+@keyframes snowFall {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(110vh);
+  }
+}
+/* ================= BOTTOM DECOR ================= */
+
+.bottom-decor {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 180px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ===== SNOW HILLS ===== */
+
+.bottom-decor::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: -10%;
+  width: 120%;
+  height: 120px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.25),
+    rgba(183, 125, 253, 0.15),
+    transparent 70%
+  );
+  filter: blur(20px);
+}
+
+/* ===== LIGHTS ===== */
+
+.lights {
+  position: absolute;
+  bottom: 35px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+}
+
+.lights span {
+  width: 6px;
+  height: 6px;
+  background: #fff;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: glow 2.5s infinite ease-in-out;
+}
+
+.lights span:nth-child(even) {
+  animation-delay: 1.2s;
+  background: #b77dfd;
+}
+
+@keyframes glow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.4);
+  }
+}
+
+/* ===== FOOTER TEXT ===== */
+
+.footer-text {
+  position: absolute;
+  bottom: 10px;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.5;
+  color: #fff;
+  letter-spacing: 1px;
+}
+/* ================= CHRISTMAS TREES ================= */
+
+.trees {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 220px;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+}
+
+.tree {
+  width: 0;
+  height: 0;
+  border-left: 45px solid transparent;
+  border-right: 45px solid transparent;
+  border-bottom: 140px solid rgba(183, 125, 253, 0.25);
+  filter: blur(0.2px);
+}
+
+.tree::after {
+  content: "";
+  position: absolute;
+  left: -30px;
+  top: 40px;
+  width: 0;
+  height: 0;
+  border-left: 30px solid transparent;
+  border-right: 30px solid transparent;
+  border-bottom: 100px solid rgba(255, 255, 255, 0.15);
+}
+
+.tree.small {
+  transform: scale(0.7);
+  opacity: 0.7;
+}
+
+.tree.big {
+  transform: scale(1.1);
+  opacity: 0.9;
+}
+
+/* немного "снега" у основания */
+.trees::before {
+  content: "";
+  position: absolute;
+  bottom: -20px;
+  width: 100%;
+  height: 60px;
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
+}
+.answer-btn{
+  width: 100%;
+}
+
+/* ===== LEADERBOARD ===== */
+
+.leaderboard-screen {
+  padding: 20px;
+  text-align: center;
+}
+
+.leaderboard-title {
+  font-size: 36px;
+  margin-bottom: 20px;
+}
+
+/* 🏆 Winner card */
+
+.winner-card {
+  background: linear-gradient(135deg, #b77dfd, #8f5bff);
+  border-radius: 20px;
+  padding: 20px;
+  color: #fff;
+  margin-bottom: 30px;
+  box-shadow: 0 10px 30px rgba(183, 125, 253, 0.4);
+}
+
+.winner-label {
+  font-size: 14px;
+  letter-spacing: 2px;
+  opacity: 0.9;
+}
+
+.winner-name {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.winner-score {
+  font-size: 20px;
+}
+
+/* 📊 List */
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.leaderboard-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1e1e1e;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 16px;
+}
+
+.winner-row {
+  border: 2px solid #b77dfd;
+}
+
+.rank {
+  opacity: 0.6;
+}
+
+.player {
+  flex: 1;
+  text-align: left;
+  margin-left: 10px;
+}
+
+.score {
+  font-weight: bold;
+}
+.forgivness {
+     margin-top: 3rem;
+    font-size: 36px;
+    font-weight: 600;
+    text-align: center;
+    color: #ffffff;
+    opacity: 0.9;
+    transform: translateX(-50%) !important;
+    left: 50%;
+    position: absolute;
+    animation: glowFloat 3s ease-in-out infinite;
+}
+
+/* ✨ Плавное свечение + легкое движение */
+
+@keyframes glowFloat {
+  0% {
+    opacity: 0.6;
+    transform: translateY(0);
+    text-shadow: 0 0 5px rgba(183, 125, 253, 0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-7px);
+    text-shadow: 0 0 15px rgba(183, 125, 253, 0.8);
+  }
+  100% {
+    opacity: 0.6;
+    transform: translateY(0);
+    text-shadow: 0 0 5px rgba(183, 125, 253, 0.3);
+  }
+}
