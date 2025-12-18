@@ -25,6 +25,20 @@ function App() {
   const [leaderboard, setLeaderboard] = useState(null);
 
   /* ================= SOCKET ================= */
+useEffect(() => {
+  socket.on("connect", () => {
+    console.log("CONNECTED TO BACKEND", socket.id);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.error("SOCKET ERROR:", err.message);
+  });
+
+  return () => {
+    socket.off("connect");
+    socket.off("connect_error");
+  };
+}, []);
 
   useEffect(() => {
     socket.on("question", (data) => {
