@@ -1,3 +1,6 @@
+console.log("APP FILE LOADED");
+
+
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import { ToastContainer, toast } from "react-toastify";
