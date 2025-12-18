@@ -3,10 +3,14 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
+/* ================= CONFIG ================= */
+const PORT = process.env.PORT || 10000;
+const QUESTIONS_LIMIT = 10;      // сколько вопросов в игре
+const QUESTION_TIME = 10000;     // время на вопрос (мс)
+
+/* ================= APP ================= */
 const app = express();
 const server = http.createServer(app);
-
-const PORT = process.env.PORT || 5003; // ← ВАЖНО
 
 app.use(cors());
 
@@ -14,12 +18,6 @@ const io = new Server(server, {
   cors: {
     origin: "*",
   },
-});
-
-// ... ВЕСЬ ОСТАЛЬНОЙ КОД
-
-server.listen(PORT, () => {
-  console.log(`SERVER running on ${PORT}`);
 });
 
 /* ================= QUESTIONS ================= */
@@ -42,7 +40,15 @@ const questions = [
       { text: "Kallium", correct: false },
     ],
   },
-  // добавь остальные вопросы сюда
+  {
+    question: "Which planet is known as the Red Planet?",
+    answers: [
+      { text: "Earth", correct: false },
+      { text: "Mars", correct: true },
+      { text: "Jupiter", correct: false },
+      { text: "Venus", correct: false },
+    ],
+  },
 ];
 
 /* ================= ROOMS ================= */
@@ -50,7 +56,7 @@ const rooms = {};
 
 /* ================= HELPERS ================= */
 function shuffle(array) {
-  const arr = [...array]; // не мутируем оригинал
+  const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -64,12 +70,12 @@ function pickQuestions(all, n) {
 
 /* ================= SOCKET ================= */
 io.on("connection", (socket) => {
-  console.log("CONNECTED", socket.id);
+  console.log("CONNECTED:", socket.id);
 
   socket.on("joinRoom", (roomId, name) => {
     if (!roomId || !name) return;
+
     socket.join(roomId);
-    console.log(`Socket ${socket.id} join ${roomId} as ${name}`);
 
     if (!rooms[roomId]) {
       rooms[roomId] = {
@@ -81,68 +87,53 @@ io.on("connection", (socket) => {
       };
     }
 
-    // avoid duplicates for same socket
-    const already = rooms[roomId].players.find(p => p.id === socket.id);
-    if (!already) {
-      rooms[roomId].players.push({
+    const room = rooms[roomId];
+
+    if (!room.players.find(p => p.id === socket.id)) {
+      room.players.push({
         id: socket.id,
         name,
         score: 0,
-        answerIndex: null, // store numeric index or null
+        answerIndex: null,
       });
     }
 
-    io.to(roomId).emit("message", `${name} joined`);
+    io.to(roomId).emit("scores", room.players.map(p => ({
+      name: p.name,
+      score: p.score,
+    })));
 
-    // start when >= 2 players and not started
-    if (rooms[roomId].players.length >= 2 && !rooms[roomId].started) {
-      rooms[roomId].started = true;
-      // small delay to let clients subscribe
+    console.log(`Room ${roomId}: ${room.players.length} players`);
+
+    if (room.players.length >= 2 && !room.started) {
+      room.started = true;
       setTimeout(() => askQuestion(roomId), 300);
     }
   });
 
-  // player submits answer index (number or numeric string)
   socket.on("submitAnswer", (roomId, answerIndex) => {
     const room = rooms[roomId];
     if (!room || !room.started) return;
-    const player = room.players.find(p => p.id === socket.id);
-    if (!player) return;
 
-    // only first answer counts for the question
-    if (player.answerIndex !== null) return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player || player.answerIndex !== null) return;
 
     const idx = Number(answerIndex);
-    if (!Number.isNaN(idx) && Number.isFinite(idx)) {
-      // validate bounds
-      const q = room.questions[room.qIndex];
-      if (q && idx >= 0 && idx < q.answers.length) {
-        player.answerIndex = idx;
-      } else {
-        // invalid index -> ignore (leave null)
-        player.answerIndex = null;
-      }
-    } else {
-      // not numeric -> ignore (leave null)
-      player.answerIndex = null;
+    if (!Number.isNaN(idx)) {
+      player.answerIndex = idx;
     }
-
-    console.log(`Room ${roomId}: player ${player.name} answered ${player.answerIndex}`);
   });
 
   socket.on("disconnect", () => {
-    console.log("DISCONNECT", socket.id);
-    for (const roomId of Object.keys(rooms)) {
+    console.log("DISCONNECT:", socket.id);
+
+    for (const roomId in rooms) {
       const room = rooms[roomId];
-      const before = room.players.length;
       room.players = room.players.filter(p => p.id !== socket.id);
-      if (room.players.length !== before) {
-        io.to(roomId).emit("message", `A player left`);
-      }
+
       if (room.players.length === 0) {
         if (room.timer) clearTimeout(room.timer);
         delete rooms[roomId];
-        console.log(`Room ${roomId} removed (empty)`);
       }
     }
   });
@@ -153,78 +144,51 @@ function askQuestion(roomId) {
   const room = rooms[roomId];
   if (!room) return;
 
-  // if finished
-if (room.qIndex >= room.questions.length || room.qIndex >= QUESTIONS_LIMIT) {
-  if (room.timer) clearTimeout(room.timer);
+  if (room.qIndex >= room.questions.length) {
+    io.to(roomId).emit("gameFinished", {
+      leaderboard: room.players
+        .map(p => ({ name: p.name, score: p.score }))
+        .sort((a, b) => b.score - a.score),
+    });
 
-  // 🔒 ФИКСИРУЕМ leaderboard
-  const leaderboard = room.players
-    .map(p => ({
-      name: p.name,
-      score: p.score,
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  // 🏁 ОТПРАВЛЯЕМ ОДИН РАЗ
-  io.to(roomId).emit("gameFinished", {
-    leaderboard,
-  });
-
-  console.log("FINAL LEADERBOARD:", leaderboard);
-
-  // 🧹 УДАЛЯЕМ КОМНАТУ ПОСЛЕ ОТПРАВКИ
-  setTimeout(() => {
     delete rooms[roomId];
-  }, 1000);
-
-  return;
-}
+    return;
+  }
 
   const q = room.questions[room.qIndex];
-  const correctIndex = q.answers.findIndex(a => a.correct === true);
+  const correctIndex = q.answers.findIndex(a => a.correct);
 
-  // reset stored answers for this question
-  room.players.forEach(p => (p.answerIndex = null));
+  room.players.forEach(p => p.answerIndex = null);
 
-  // send question
   io.to(roomId).emit("newQuestion", {
     question: q.question,
     answers: q.answers.map(a => a.text),
-    timer: Math.floor(QUESTION_TIME / 1000),
+    timer: QUESTION_TIME / 1000,
   });
 
-  // schedule scoring when timer expires
-  if (room.timer) clearTimeout(room.timer);
   room.timer = setTimeout(() => {
-    // scoring
-    const results = room.players.map(p => {
-      const chosen = p.answerIndex;
-      const isCorrect = (typeof chosen === "number") && (chosen === correctIndex);
-      if (isCorrect) {
+    room.players.forEach(p => {
+      if (p.answerIndex === correctIndex) {
         p.score += 1;
       } else {
         p.score -= 1;
       }
-      return {
-        id: p.id,
-        name: p.name,
-        answerIndex: p.answerIndex,
-        isCorrect,
-        score: p.score,
-      };
     });
 
-    // emit results + updated scores + correct index
     io.to(roomId).emit("answerResult", {
       correctAnswer: correctIndex,
-      results,
-      scores: room.players.map(p => ({ name: p.name, score: p.score })),
+      scores: room.players.map(p => ({
+        name: p.name,
+        score: p.score,
+      })),
     });
 
-    // next question (advance index THEN call next)
     room.qIndex += 1;
-    // small pause before next question to give clients time to show result
     setTimeout(() => askQuestion(roomId), 600);
   }, QUESTION_TIME);
 }
 
+/* ================= START SERVER ================= */
+server.listen(PORT, () => {
+  console.log(`SERVER running on ${PORT}`);
+});
