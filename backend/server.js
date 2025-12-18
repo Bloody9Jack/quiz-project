@@ -3,24 +3,32 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
-/* ================= CONFIG ================= */
-const PORT = process.env.PORT || 10000;
-const QUESTIONS_LIMIT = 10;      // сколько вопросов в игре
-const QUESTION_TIME = 10000;     // время на вопрос (мс)
-
-/* ================= APP ================= */
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
+const PORT = process.env.PORT || 10000;
 
+/* ================= HTTP CORS ================= */
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
+
+/* ================= SOCKET.IO ================= */
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // можно позже сузить до Netlify домена
+    methods: ["GET", "POST"],
   },
+  transports: ["websocket"], // 🔥 ВАЖНО
 });
 
 /* ================= QUESTIONS ================= */
+const QUESTION_TIME = 10000;
+const QUESTIONS_LIMIT = 10;
+
 const questions = [
   {
     question: "What is the largest ocean on Earth?",
@@ -38,15 +46,6 @@ const questions = [
       { text: "Potassium", correct: true },
       { text: "Kryptonite", correct: false },
       { text: "Kallium", correct: false },
-    ],
-  },
-  {
-    question: "Which planet is known as the Red Planet?",
-    answers: [
-      { text: "Earth", correct: false },
-      { text: "Mars", correct: true },
-      { text: "Jupiter", correct: false },
-      { text: "Venus", correct: false },
     ],
   },
 ];
@@ -68,7 +67,7 @@ function pickQuestions(all, n) {
   return shuffle(all).slice(0, n);
 }
 
-/* ================= SOCKET ================= */
+/* ================= SOCKET EVENTS ================= */
 io.on("connection", (socket) => {
   console.log("CONNECTED:", socket.id);
 
@@ -80,17 +79,18 @@ io.on("connection", (socket) => {
     if (!rooms[roomId]) {
       rooms[roomId] = {
         players: [],
-        questions: pickQuestions(questions, Math.min(QUESTIONS_LIMIT, questions.length)),
+        questions: pickQuestions(
+          questions,
+          Math.min(QUESTIONS_LIMIT, questions.length)
+        ),
         qIndex: 0,
         timer: null,
         started: false,
       };
     }
 
-    const room = rooms[roomId];
-
-    if (!room.players.find(p => p.id === socket.id)) {
-      room.players.push({
+    if (!rooms[roomId].players.find((p) => p.id === socket.id)) {
+      rooms[roomId].players.push({
         id: socket.id,
         name,
         score: 0,
@@ -98,41 +98,32 @@ io.on("connection", (socket) => {
       });
     }
 
-    io.to(roomId).emit("scores", room.players.map(p => ({
-      name: p.name,
-      score: p.score,
-    })));
-
-    console.log(`Room ${roomId}: ${room.players.length} players`);
-
-    if (room.players.length >= 2 && !room.started) {
-      room.started = true;
+    if (rooms[roomId].players.length >= 2 && !rooms[roomId].started) {
+      rooms[roomId].started = true;
       setTimeout(() => askQuestion(roomId), 300);
     }
   });
 
   socket.on("submitAnswer", (roomId, answerIndex) => {
     const room = rooms[roomId];
-    if (!room || !room.started) return;
+    if (!room) return;
 
-    const player = room.players.find(p => p.id === socket.id);
+    const player = room.players.find((p) => p.id === socket.id);
     if (!player || player.answerIndex !== null) return;
 
     const idx = Number(answerIndex);
-    if (!Number.isNaN(idx)) {
+    if (Number.isInteger(idx)) {
       player.answerIndex = idx;
     }
   });
 
   socket.on("disconnect", () => {
-    console.log("DISCONNECT:", socket.id);
-
     for (const roomId in rooms) {
-      const room = rooms[roomId];
-      room.players = room.players.filter(p => p.id !== socket.id);
-
-      if (room.players.length === 0) {
-        if (room.timer) clearTimeout(room.timer);
+      rooms[roomId].players = rooms[roomId].players.filter(
+        (p) => p.id !== socket.id
+      );
+      if (rooms[roomId].players.length === 0) {
+        clearTimeout(rooms[roomId].timer);
         delete rooms[roomId];
       }
     }
@@ -147,37 +138,33 @@ function askQuestion(roomId) {
   if (room.qIndex >= room.questions.length) {
     io.to(roomId).emit("gameFinished", {
       leaderboard: room.players
-        .map(p => ({ name: p.name, score: p.score }))
+        .map((p) => ({ name: p.name, score: p.score }))
         .sort((a, b) => b.score - a.score),
     });
-
     delete rooms[roomId];
     return;
   }
 
   const q = room.questions[room.qIndex];
-  const correctIndex = q.answers.findIndex(a => a.correct);
+  const correctIndex = q.answers.findIndex((a) => a.correct);
 
-  room.players.forEach(p => p.answerIndex = null);
+  room.players.forEach((p) => (p.answerIndex = null));
 
   io.to(roomId).emit("newQuestion", {
     question: q.question,
-    answers: q.answers.map(a => a.text),
+    answers: q.answers.map((a) => a.text),
     timer: QUESTION_TIME / 1000,
   });
 
   room.timer = setTimeout(() => {
-    room.players.forEach(p => {
-      if (p.answerIndex === correctIndex) {
-        p.score += 1;
-      } else {
-        p.score -= 1;
-      }
+    room.players.forEach((p) => {
+      if (p.answerIndex === correctIndex) p.score += 1;
+      else p.score -= 1;
     });
 
     io.to(roomId).emit("answerResult", {
       correctAnswer: correctIndex,
-      scores: room.players.map(p => ({
+      scores: room.players.map((p) => ({
         name: p.name,
         score: p.score,
       })),
@@ -188,7 +175,7 @@ function askQuestion(roomId) {
   }, QUESTION_TIME);
 }
 
-/* ================= START SERVER ================= */
+/* ================= START ================= */
 server.listen(PORT, () => {
   console.log(`SERVER running on ${PORT}`);
 });
