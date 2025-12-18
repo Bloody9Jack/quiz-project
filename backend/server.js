@@ -11,18 +11,23 @@ const PORT = process.env.PORT || 10000;
 /* ================= CORS ================= */
 app.use(
   cors({
-    origin: "*",
-    methods: ["GET", "POST"],
+    origin: [
+      "http://localhost:5173",
+      "https://magenta-marshmallow-0576fb.netlify.app",
+    ],
+    credentials: true,
   })
 );
 
 /* ================= SOCKET.IO ================= */
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: [
+      "http://localhost:5173",
+      "https://magenta-marshmallow-0576fb.netlify.app",
+    ],
     methods: ["GET", "POST"],
   },
-  transports: ["websocket"], // 🔥 КРИТИЧНО (убираем polling)
 });
 
 /* ================= QUESTIONS ================= */
