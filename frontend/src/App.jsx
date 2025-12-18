@@ -5,7 +5,9 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import io from 'socket.io-client';
 
-const socket = io(import.meta.env.VITE_SOCKET_URL);
+const socket = io("https://quiz-project-4jne.onrender.com", {
+  transports: ["websocket"],
+});
 
 function App() {
   const [name, setName] = useState('');
