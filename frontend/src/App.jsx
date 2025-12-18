@@ -1,13 +1,15 @@
-// App.jsx
-import React, { useState, useEffect } from "react";
-import "./App.css";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import "./App.css";
 
-const socket = io(import.meta.env.VITE_SOCKET_URL);
+/* ===== SOCKET ===== */
+const socket = io(import.meta.env.VITE_SOCKET_URL, {
+  transports: ["websocket"],
+  withCredentials: true,
+});
 
-function App() {
+/* ===== APP ===== */
+export default function App() {
   const [name, setName] = useState("");
   const [room, setRoom] = useState("");
   const [joined, setJoined] = useState(false);
@@ -22,7 +24,7 @@ function App() {
   const [scores, setScores] = useState([]);
   const [finalLeaderboard, setFinalLeaderboard] = useState(null);
 
-  /* ================= SOCKET ================= */
+  /* ===== SOCKET EVENTS ===== */
   useEffect(() => {
     socket.on("connect", () => {
       console.log("CONNECTED:", socket.id);
@@ -36,12 +38,13 @@ function App() {
       setQuestion(data.question);
       setOptions(data.answers);
       setSeconds(data.timer);
-      setSelectedIndex(null);
       setAnswered(false);
+      setSelectedIndex(null);
     });
 
     socket.on("answerResult", (data) => {
       setScores(data.scores);
+      setAnswered(true);
     });
 
     socket.on("gameFinished", (data) => {
@@ -57,34 +60,37 @@ function App() {
     };
   }, []);
 
-  /* ================= TIMER ================= */
+  /* ===== TIMER ===== */
   useEffect(() => {
-    if (typeof seconds !== "number" || seconds <= 0) return;
-    const t = setInterval(() => {
+    if (seconds === null || seconds <= 0) return;
+
+    const timer = setInterval(() => {
       setSeconds((s) => (s > 0 ? s - 1 : 0));
     }, 1000);
-    return () => clearInterval(t);
+
+    return () => clearInterval(timer);
   }, [seconds]);
 
-  /* ================= ACTIONS ================= */
-  const handleJoin = (e) => {
+  /* ===== ACTIONS ===== */
+  const joinRoom = (e) => {
     e.preventDefault();
+    if (!name || !room) return;
     socket.emit("joinRoom", room, name);
     setJoined(true);
   };
 
-  const handleAnswer = (idx) => {
+  const answer = (idx) => {
     if (answered) return;
     setAnswered(true);
     setSelectedIndex(idx);
     socket.emit("submitAnswer", room, idx);
   };
 
-  /* ================= RENDER ================= */
+  /* ===== RENDER ===== */
   if (finalLeaderboard) {
     return (
       <div className="App">
-        <h1>Leaderboard</h1>
+        <h1>🏆 Leaderboard</h1>
         {finalLeaderboard.map((p, i) => (
           <div key={i}>
             {i + 1}. {p.name} — {p.score}
@@ -96,34 +102,49 @@ function App() {
 
   return (
     <div className="App">
-      <ToastContainer />
-
       {!joined ? (
-        <form onSubmit={handleJoin}>
+        <form onSubmit={joinRoom} className="join">
           <h1>Quiz</h1>
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-          <input value={room} onChange={(e) => setRoom(e.target.value)} required />
-          <button>Join</button>
+
+          <input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+
+          <input
+            placeholder="Room ID"
+            value={room}
+            onChange={(e) => setRoom(e.target.value)}
+            required
+          />
+
+          <button type="submit">Join</button>
         </form>
       ) : (
-        <>
+        <div className="game">
           <h2>Room: {room}</h2>
 
           {question ? (
             <>
-              <p>Time left: {seconds}</p>
+              <p>⏳ Time left: {seconds}</p>
               <h3>{question}</h3>
 
-              {options.map((o, i) => (
-                <button
-                  key={i}
-                  disabled={answered}
-                  className={selectedIndex === i ? "selected" : ""}
-                  onClick={() => handleAnswer(i)}
-                >
-                  {o}
-                </button>
-              ))}
+              <div className="answers">
+                {options.map((o, i) => (
+                  <button
+                    key={i}
+                    disabled={answered}
+                    className={
+                      selectedIndex === i ? "answer selected" : "answer"
+                    }
+                    onClick={() => answer(i)}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
 
               <h3>Scores</h3>
               {scores.map((s) => (
@@ -135,10 +156,8 @@ function App() {
           ) : (
             <p>Waiting for question…</p>
           )}
-        </>
+        </div>
       )}
     </div>
   );
 }
-
-export default App;

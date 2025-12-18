@@ -3,24 +3,37 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
-/* ================= CONFIG ================= */
 const PORT = process.env.PORT || 10000;
-const QUESTIONS_LIMIT = 10;      // сколько вопросов в игре
-const QUESTION_TIME = 10000;     // время на вопрос (мс)
+const QUESTIONS_LIMIT = 10;
+const QUESTION_TIME = 10000;
 
-/* ================= APP ================= */
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
+/* ===== CORS ===== */
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://YOUR_NETLIFY_SITE.netlify.app",
+    ],
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: [
+      "http://localhost:5173",
+      "https://YOUR_NETLIFY_SITE.netlify.app",
+    ],
+    methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
-/* ================= QUESTIONS ================= */
+/* ===== QUESTIONS ===== */
 const questions = [
   {
     question: "What is the largest ocean on Earth?",
@@ -51,24 +64,12 @@ const questions = [
   },
 ];
 
-/* ================= ROOMS ================= */
 const rooms = {};
 
-/* ================= HELPERS ================= */
-function shuffle(array) {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
+const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+const pickQuestions = (all, n) => shuffle(all).slice(0, n);
 
-function pickQuestions(all, n) {
-  return shuffle(all).slice(0, n);
-}
-
-/* ================= SOCKET ================= */
+/* ===== SOCKET ===== */
 io.on("connection", (socket) => {
   console.log("CONNECTED:", socket.id);
 
@@ -80,7 +81,10 @@ io.on("connection", (socket) => {
     if (!rooms[roomId]) {
       rooms[roomId] = {
         players: [],
-        questions: pickQuestions(questions, Math.min(QUESTIONS_LIMIT, questions.length)),
+        questions: pickQuestions(
+          questions,
+          Math.min(QUESTIONS_LIMIT, questions.length)
+        ),
         qIndex: 0,
         timer: null,
         started: false,
@@ -89,106 +93,84 @@ io.on("connection", (socket) => {
 
     const room = rooms[roomId];
 
-    if (!room.players.find(p => p.id === socket.id)) {
-      room.players.push({
-        id: socket.id,
-        name,
-        score: 0,
-        answerIndex: null,
-      });
-    }
+    room.players.push({
+      id: socket.id,
+      name,
+      score: 0,
+      answerIndex: null,
+    });
 
-    io.to(roomId).emit("scores", room.players.map(p => ({
-      name: p.name,
-      score: p.score,
-    })));
-
-    console.log(`Room ${roomId}: ${room.players.length} players`);
+    io.to(roomId).emit(
+      "scores",
+      room.players.map((p) => ({ name: p.name, score: p.score }))
+    );
 
     if (room.players.length >= 2 && !room.started) {
       room.started = true;
-      setTimeout(() => askQuestion(roomId), 300);
+      setTimeout(() => askQuestion(roomId), 500);
     }
   });
 
-  socket.on("submitAnswer", (roomId, answerIndex) => {
+  socket.on("submitAnswer", (roomId, idx) => {
     const room = rooms[roomId];
-    if (!room || !room.started) return;
-
-    const player = room.players.find(p => p.id === socket.id);
-    if (!player || player.answerIndex !== null) return;
-
-    const idx = Number(answerIndex);
-    if (!Number.isNaN(idx)) {
-      player.answerIndex = idx;
-    }
+    if (!room) return;
+    const p = room.players.find((x) => x.id === socket.id);
+    if (!p || p.answerIndex !== null) return;
+    p.answerIndex = Number(idx);
   });
 
   socket.on("disconnect", () => {
-    console.log("DISCONNECT:", socket.id);
-
     for (const roomId in rooms) {
-      const room = rooms[roomId];
-      room.players = room.players.filter(p => p.id !== socket.id);
-
-      if (room.players.length === 0) {
-        if (room.timer) clearTimeout(room.timer);
+      rooms[roomId].players = rooms[roomId].players.filter(
+        (p) => p.id !== socket.id
+      );
+      if (rooms[roomId].players.length === 0) {
+        clearTimeout(rooms[roomId].timer);
         delete rooms[roomId];
       }
     }
   });
 });
 
-/* ================= GAME FLOW ================= */
+/* ===== GAME FLOW ===== */
 function askQuestion(roomId) {
   const room = rooms[roomId];
   if (!room) return;
 
   if (room.qIndex >= room.questions.length) {
     io.to(roomId).emit("gameFinished", {
-      leaderboard: room.players
-        .map(p => ({ name: p.name, score: p.score }))
-        .sort((a, b) => b.score - a.score),
+      leaderboard: room.players.sort((a, b) => b.score - a.score),
     });
-
     delete rooms[roomId];
     return;
   }
 
   const q = room.questions[room.qIndex];
-  const correctIndex = q.answers.findIndex(a => a.correct);
+  const correct = q.answers.findIndex((a) => a.correct);
 
-  room.players.forEach(p => p.answerIndex = null);
+  room.players.forEach((p) => (p.answerIndex = null));
 
   io.to(roomId).emit("newQuestion", {
     question: q.question,
-    answers: q.answers.map(a => a.text),
+    answers: q.answers.map((a) => a.text),
     timer: QUESTION_TIME / 1000,
   });
 
   room.timer = setTimeout(() => {
-    room.players.forEach(p => {
-      if (p.answerIndex === correctIndex) {
-        p.score += 1;
-      } else {
-        p.score -= 1;
-      }
+    room.players.forEach((p) => {
+      p.score += p.answerIndex === correct ? 1 : -1;
     });
 
     io.to(roomId).emit("answerResult", {
-      correctAnswer: correctIndex,
-      scores: room.players.map(p => ({
-        name: p.name,
-        score: p.score,
-      })),
+      correctAnswer: correct,
+      scores: room.players,
     });
 
-    room.qIndex += 1;
-    setTimeout(() => askQuestion(roomId), 600);
+    room.qIndex++;
+    setTimeout(() => askQuestion(roomId), 500);
   }, QUESTION_TIME);
 }
 
-/* ================= START SERVER ================= */
-server.listen(PORT, () => {
-  console.log(`SERVER running on ${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("SERVER RUNNING:", PORT);
 });
