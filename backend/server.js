@@ -19,8 +19,6 @@ const io = socketIo(server, {
   },
 });
 
-const PORT = process.env.PORT || 10000;
-
 server.listen(PORT, () => {
   console.log(`SERVER running on ${PORT}`);
 });
@@ -230,7 +228,3 @@ if (room.qIndex >= room.questions.length || room.qIndex >= QUESTIONS_LIMIT) {
   }, QUESTION_TIME);
 }
 
-/* ================= START ================= */
-server.listen(PORT, () => {
-  console.log(`SERVER running on ${PORT}`);
-});
