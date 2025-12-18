@@ -22,13 +22,11 @@ app.use(
 /* ================= SOCKET.IO ================= */
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://magenta-marshmallow-0576fb.netlify.app",
-    ],
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
+
 
 /* ================= QUESTIONS ================= */
 const QUESTIONS_LIMIT = 5;

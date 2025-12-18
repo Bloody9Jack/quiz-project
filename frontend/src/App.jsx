@@ -7,10 +7,8 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { io } from "socket.io-client";
 
-const socket = io(import.meta.env.VITE_SOCKET_URL, {
-  transports: ["websocket"],
-  withCredentials: true,
-});
+const socket = io(import.meta.env.VITE_SOCKET_URL);
+
 
 function App() {
   const [name, setName] = useState("");
