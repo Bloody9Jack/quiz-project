@@ -1,18 +1,14 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "main": "server.js",
   "scripts": {
-    "start": "nodemon app.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.22.1",
-    "nodemon": "^3.0.1",
     "socket.io": "^4.8.1"
-  },
-  "keywords": []
+  }
 }
