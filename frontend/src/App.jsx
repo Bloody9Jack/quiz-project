@@ -1,6 +1,4 @@
-console.log("APP FILE LOADED");
-
-
+// App.jsx
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import { ToastContainer, toast } from "react-toastify";
@@ -9,102 +7,85 @@ import { io } from "socket.io-client";
 
 const socket = io(import.meta.env.VITE_SOCKET_URL);
 
-
 function App() {
   const [name, setName] = useState("");
   const [room, setRoom] = useState("");
   const [joined, setJoined] = useState(false);
 
-  const [question, setQuestion] = useState(null);
-  const [answers, setAnswers] = useState([]);
-  const [time, setTime] = useState(null);
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState([]);
+  const [seconds, setSeconds] = useState(null);
 
+  const [selectedIndex, setSelectedIndex] = useState(null);
   const [answered, setAnswered] = useState(false);
-  const [selected, setSelected] = useState(null);
 
   const [scores, setScores] = useState([]);
-  const [leaderboard, setLeaderboard] = useState(null);
+  const [finalLeaderboard, setFinalLeaderboard] = useState(null);
 
   /* ================= SOCKET ================= */
-useEffect(() => {
-  socket.on("connect", () => {
-    console.log("CONNECTED TO BACKEND", socket.id);
-  });
-
-  socket.on("connect_error", (err) => {
-    console.error("SOCKET ERROR:", err.message);
-  });
-
-  return () => {
-    socket.off("connect");
-    socket.off("connect_error");
-  };
-}, []);
-
   useEffect(() => {
-    socket.on("question", (data) => {
-      setQuestion(data.question);
-      setAnswers(data.answers);
-      setTime(data.time);
-      setAnswered(false);
-      setSelected(null);
+    socket.on("connect", () => {
+      console.log("CONNECTED:", socket.id);
     });
 
-    socket.on("result", (data) => {
-      setScores(data.scores);
+    socket.on("scores", (list) => {
+      setScores(list);
+    });
 
-      const me = data.scores.find((p) => p.name === name);
-      if (me) {
-        toast.info(`Your score: ${me.score}`);
-      }
+    socket.on("newQuestion", (data) => {
+      setQuestion(data.question);
+      setOptions(data.answers);
+      setSeconds(data.timer);
+      setSelectedIndex(null);
+      setAnswered(false);
+    });
+
+    socket.on("answerResult", (data) => {
+      setScores(data.scores);
     });
 
     socket.on("gameFinished", (data) => {
-      setLeaderboard(data.leaderboard);
+      setFinalLeaderboard(data.leaderboard);
     });
 
     return () => {
-      socket.off("question");
-      socket.off("result");
+      socket.off("connect");
+      socket.off("scores");
+      socket.off("newQuestion");
+      socket.off("answerResult");
       socket.off("gameFinished");
     };
-  }, [name]);
+  }, []);
 
   /* ================= TIMER ================= */
-
   useEffect(() => {
-    if (time === null) return;
-    if (time <= 0) return;
-
+    if (typeof seconds !== "number" || seconds <= 0) return;
     const t = setInterval(() => {
-      setTime((v) => (v > 0 ? v - 1 : 0));
+      setSeconds((s) => (s > 0 ? s - 1 : 0));
     }, 1000);
-
     return () => clearInterval(t);
-  }, [time]);
+  }, [seconds]);
 
   /* ================= ACTIONS ================= */
-
-  const join = (e) => {
+  const handleJoin = (e) => {
     e.preventDefault();
-    socket.emit("joinRoom", { roomId: room, name });
+    socket.emit("joinRoom", room, name);
     setJoined(true);
   };
 
-  const answer = (idx) => {
+  const handleAnswer = (idx) => {
     if (answered) return;
     setAnswered(true);
-    setSelected(idx);
-    socket.emit("answer", { roomId: room, index: idx });
+    setSelectedIndex(idx);
+    socket.emit("submitAnswer", room, idx);
   };
 
   /* ================= RENDER ================= */
-
-  if (leaderboard) {
+  if (finalLeaderboard) {
     return (
       <div className="App">
         <h1>Leaderboard</h1>
-        {leaderboard.map((p, i) => (
+        {finalLeaderboard.map((p, i) => (
           <div key={i}>
             {i + 1}. {p.name} — {p.score}
           </div>
@@ -118,20 +99,10 @@ useEffect(() => {
       <ToastContainer />
 
       {!joined ? (
-        <form onSubmit={join}>
-          <h1>QuizClash</h1>
-          <input
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            placeholder="Room"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            required
-          />
+        <form onSubmit={handleJoin}>
+          <h1>Quiz</h1>
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
+          <input value={room} onChange={(e) => setRoom(e.target.value)} required />
           <button>Join</button>
         </form>
       ) : (
@@ -140,16 +111,17 @@ useEffect(() => {
 
           {question ? (
             <>
-              <p>Time left: {time}</p>
+              <p>Time left: {seconds}</p>
               <h3>{question}</h3>
-              {answers.map((a, i) => (
+
+              {options.map((o, i) => (
                 <button
                   key={i}
                   disabled={answered}
-                  className={selected === i ? "selected" : ""}
-                  onClick={() => answer(i)}
+                  className={selectedIndex === i ? "selected" : ""}
+                  onClick={() => handleAnswer(i)}
                 >
-                  {a}
+                  {o}
                 </button>
               ))}
 
@@ -161,7 +133,7 @@ useEffect(() => {
               ))}
             </>
           ) : (
-            <p>Waiting for players / question…</p>
+            <p>Waiting for question…</p>
           )}
         </>
       )}
