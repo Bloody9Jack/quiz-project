@@ -1,37 +1,33 @@
 const express = require("express");
 const http = require("http");
-const cors = require("cors");
 const { Server } = require("socket.io");
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 5003;
+const PORT = process.env.PORT || 10000;
 
-/* ================== CORS ================== */
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST"],
-}));
+/* ================= CORS ================= */
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
 
-/* ================== HEALTHCHECK ================== */
-// ⚠️ ОБЯЗАТЕЛЬНО для Render
-app.get("/", (req, res) => {
-  res.send("QuizClash backend is running");
-});
-
-/* ================== SOCKET.IO ================== */
+/* ================= SOCKET.IO ================= */
 const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
   },
-  transports: ["websocket", "polling"], // ВАЖНО ДЛЯ RENDER
+  transports: ["websocket"], // 🔥 КРИТИЧНО (убираем polling)
 });
 
 /* ================= QUESTIONS ================= */
 const QUESTIONS_LIMIT = 5;
-const QUESTION_TIME = 10000;
+const QUESTION_TIME = 8000;
 
 const questions = [
   {
@@ -44,12 +40,12 @@ const questions = [
     ],
   },
   {
-    question: "Which element has the chemical symbol 'K'?",
+    question: "Which element has the symbol K?",
     answers: [
-      { text: "Krypton", correct: false },
       { text: "Potassium", correct: true },
-      { text: "Kryptonite", correct: false },
-      { text: "Kallium", correct: false },
+      { text: "Krypton", correct: false },
+      { text: "Calcium", correct: false },
+      { text: "Carbon", correct: false },
     ],
   },
 ];
@@ -57,20 +53,15 @@ const questions = [
 /* ================= ROOMS ================= */
 const rooms = {};
 
-/* ================= HELPERS ================= */
-function shuffle(array) {
-  return [...array].sort(() => Math.random() - 0.5);
+function shuffle(arr) {
+  return [...arr].sort(() => Math.random() - 0.5);
 }
 
-function pickQuestions(all, n) {
-  return shuffle(all).slice(0, n);
-}
-
-/* ================= SOCKET LOGIC ================= */
+/* ================= SOCKET EVENTS ================= */
 io.on("connection", (socket) => {
   console.log("CONNECTED:", socket.id);
 
-  socket.on("joinRoom", (roomId, name) => {
+  socket.on("joinRoom", ({ roomId, name }) => {
     if (!roomId || !name) return;
 
     socket.join(roomId);
@@ -78,8 +69,8 @@ io.on("connection", (socket) => {
     if (!rooms[roomId]) {
       rooms[roomId] = {
         players: [],
-        questions: pickQuestions(questions, QUESTIONS_LIMIT),
-        qIndex: 0,
+        questions: shuffle(questions).slice(0, QUESTIONS_LIMIT),
+        index: 0,
         started: false,
         timer: null,
       };
@@ -87,38 +78,38 @@ io.on("connection", (socket) => {
 
     const room = rooms[roomId];
 
-    if (!room.players.find(p => p.id === socket.id)) {
+    if (!room.players.find((p) => p.id === socket.id)) {
       room.players.push({
         id: socket.id,
         name,
         score: 0,
-        answerIndex: null,
+        answer: null,
       });
     }
 
-    io.to(roomId).emit("scores", room.players);
+    io.to(roomId).emit("players", room.players);
 
     if (room.players.length >= 2 && !room.started) {
       room.started = true;
-      setTimeout(() => askQuestion(roomId), 500);
+      setTimeout(() => sendQuestion(roomId), 500);
     }
   });
 
-  socket.on("submitAnswer", (roomId, index) => {
+  socket.on("answer", ({ roomId, index }) => {
     const room = rooms[roomId];
     if (!room) return;
 
-    const player = room.players.find(p => p.id === socket.id);
-    if (!player || player.answerIndex !== null) return;
-
-    player.answerIndex = Number(index);
+    const player = room.players.find((p) => p.id === socket.id);
+    if (player && player.answer === null) {
+      player.answer = index;
+    }
   });
 
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      rooms[roomId].players =
-        rooms[roomId].players.filter(p => p.id !== socket.id);
-
+      rooms[roomId].players = rooms[roomId].players.filter(
+        (p) => p.id !== socket.id
+      );
       if (rooms[roomId].players.length === 0) {
         clearTimeout(rooms[roomId].timer);
         delete rooms[roomId];
@@ -128,11 +119,11 @@ io.on("connection", (socket) => {
 });
 
 /* ================= GAME FLOW ================= */
-function askQuestion(roomId) {
+function sendQuestion(roomId) {
   const room = rooms[roomId];
   if (!room) return;
 
-  if (room.qIndex >= room.questions.length) {
+  if (room.index >= room.questions.length) {
     io.to(roomId).emit("gameFinished", {
       leaderboard: room.players.sort((a, b) => b.score - a.score),
     });
@@ -140,34 +131,34 @@ function askQuestion(roomId) {
     return;
   }
 
-  const q = room.questions[room.qIndex];
-  const correctIndex = q.answers.findIndex(a => a.correct);
+  const q = room.questions[room.index];
+  const correctIndex = q.answers.findIndex((a) => a.correct);
 
-  room.players.forEach(p => (p.answerIndex = null));
+  room.players.forEach((p) => (p.answer = null));
 
-  io.to(roomId).emit("newQuestion", {
+  io.to(roomId).emit("question", {
     question: q.question,
-    answers: q.answers.map(a => a.text),
-    timer: QUESTION_TIME / 1000,
+    answers: q.answers.map((a) => a.text),
+    time: QUESTION_TIME / 1000,
   });
 
   room.timer = setTimeout(() => {
-    room.players.forEach(p => {
-      if (p.answerIndex === correctIndex) p.score += 1;
-      else p.score -= 1;
+    room.players.forEach((p) => {
+      if (p.answer === correctIndex) p.score++;
+      else p.score--;
     });
 
-    io.to(roomId).emit("answerResult", {
-      correctAnswer: correctIndex,
+    io.to(roomId).emit("result", {
+      correctIndex,
       scores: room.players,
     });
 
-    room.qIndex++;
-    setTimeout(() => askQuestion(roomId), 800);
+    room.index++;
+    setTimeout(() => sendQuestion(roomId), 1000);
   }, QUESTION_TIME);
 }
 
 /* ================= START ================= */
 server.listen(PORT, () => {
-  console.log("SERVER RUNNING ON", PORT);
+  console.log("SERVER running on", PORT);
 });
